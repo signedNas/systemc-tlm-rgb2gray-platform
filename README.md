@@ -119,10 +119,10 @@ flowchart LR
     ACC[Accelerator RGB->Gray]
     STG[Persistent Storage]
 
-    CPU --> BUS
-    BUS --> RAM
-    BUS --> ACC
-    BUS --> STG
+    CPU <--> BUS
+    BUS <--> RAM
+    BUS <--> ACC
+    BUS <--> STG
     ACC --> RAM
 ```
 
