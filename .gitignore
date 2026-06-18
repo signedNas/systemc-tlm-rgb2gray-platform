@@ -31,6 +31,10 @@
 *.exe
 *.out
 *.app
+rgb2gray
+
+# Local build output
+build/
 
 ### Linux ###
 *~
