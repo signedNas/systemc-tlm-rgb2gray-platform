@@ -233,3 +233,10 @@ make native-build
 make native-run
 make image
 ```
+
+## Disclaimer: Uso de Inteligencia Artificial
+Este README fue co-creado con el uso de Inteligencia Artificial a partir de los requisitos de forma y fondo de los documentos del proyecto contemplando el texto y los diagramas. Toda la salida fue re validada y modificada segun fuera requerido para evitar condiciones de alucinaciones o perdida de obejtivos tipicos de los modelos generativos.
+Damos fe que el contenido fue revisado por humanos y que cualquier error proviene tanto de la IA como de humanos
+
+Prompts actualizados:
+- Agrega un marco teorico que cumpla con el punto README del PDF adjunto.
