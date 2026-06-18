@@ -1,128 +1,235 @@
 # systemc-tlm-rgb2gray-platform
 
-This checkout contains the native SystemC/TLM RGB-to-gray platform plus the
-helper scripts used to convert images to and from the raw format expected by
-the simulator.
+Plataforma SystemC/TLM para convertir una imagen RGB a escala de grises
+mediante un procesador, un bus, una RAM, un acelerador y almacenamiento
+persistente modelados como módulos TLM.
 
-## What is included
+## Contenido del repositorio
 
-- `scripts/image_to_raw.py` converts a JPEG/PNG into the raw RGB input format
-- `scripts/raw_to_image.py` converts raw output back into a viewable image
-- `src/main.cpp` is the native SystemC entry point
+- `src/main.cpp`: punto de entrada `sc_main` del modelo SystemC
+- `src/cpu.h`: módulo CPU que orquesta el flujo completo
+- `src/bus.h`: router TLM por direcciones
+- `src/ram.h`: memoria RAM de 64 MB con dos puertos
+- `src/accelerator.h`: acelerador RGB a grayscale
+- `src/persistent_storage.h`: periférico de almacenamiento persistente
+- `src/memory_map.h`: mapa de memoria, tamaños y constantes
+- `scripts/image_to_raw.py`: convierte JPG/PNG a raw RGB
+- `scripts/raw_to_image.py`: convierte raw a PNG/JPG
+- `pictures/jpg/`: imágenes de entrada de ejemplo
+- `pictures/raw/`: archivos raw de ejemplo
 
-## Install Python package Pillow
-python3 -m pip install pillow
+## Requisitos
 
-## Install SystemC
+### Dependencias de sistema
 
-If you do not already have SystemC, the most reliable path is to build it
-from source and point this project at that install directory.
-
-On Ubuntu or Debian, install the basic build tools first:
+En Ubuntu o Debian:
 
 ```bash
 sudo apt update
 sudo apt install -y build-essential cmake make wget tar
 ```
 
-Then download the current SystemC release from the official SystemC/Accellera
-site, unpack it, and build it with a prefix of your choice. A typical source
-build looks like this:
+### Pillow
+
+Los scripts de conversión de imágenes usan Pillow:
+
+```bash
+python3 -m pip install pillow
+```
+
+### SystemC
+
+Si no tienes SystemC instalado, compílalo desde la fuente y luego apunta este
+proyecto a esa instalación.
+
+Ejemplo en Ubuntu/Debian:
 
 ```bash
 cd /tmp
 mkdir systemc-source
 cd systemc-source
 wget https://github.com/accellera-official/systemc/archive/refs/tags/3.0.2.tar.gz
-tar -xf 3.0.2.tar.gz 
+tar -xf 3.0.2.tar.gz
 cd systemc-3.0.2/
 ../configure --prefix=/opt/systemc
 make -j"$(nproc)"
 sudo make install
 ```
 
-## Native SystemC build
+## Compilación
 
-If you have SystemC installed, build the C++ version with:
-
-```bash
-make native-build SYSTEMC_HOME=/path/to/systemc
-```
-
-Then run it with:
+### Compilación con CMake
 
 ```bash
-make native-run SYSTEMC_HOME=/path/to/systemc
+make native-build SYSTEMC_HOME=/opt/systemc
 ```
 
-The native binary expects the same default input and output files:
-
-- input: `pictures/raw/grumpy-online.raw`
-- output: `build/native-output.raw`
-
-If your SystemC installation uses a different include or library directory,
-override `SYSTEMC_INCLUDE` and `SYSTEMC_LIBDIR` as needed.
-
-## Run Native SystemC
-
-Use this flow when you want to run the actual SystemC/TLM version.
-
-1. Build the native binary:
+Si tu instalación de SystemC está en otra ruta, cambia `SYSTEMC_HOME`:
 
 ```bash
-make SYSTEMC_HOME=/opt/systemc
+make native-build SYSTEMC_HOME=/ruta/a/systemc
 ```
 
-2. Convert a JPEG or PNG into the raw RGB input expected by the simulator:
+### Ejecutar el binario nativo
+
+```bash
+make native-run SYSTEMC_HOME=/opt/systemc
+```
+
+Por defecto el binario usa:
+
+- entrada: `pictures/raw/grumpy-online.raw`
+- salida: `build/native-output.raw`
+
+## Conversión de imagen
+
+### Convertir una imagen a raw RGB
 
 ```bash
 python3 scripts/image_to_raw.py pictures/jpg/grumpy-cat.jpg build/proc_input.raw --resize
 ```
 
-3. Run the SystemC binary:
+### Convertir el raw de salida a PNG
 
 ```bash
-./rgb2gray build/proc_input.raw build/output.raw
+python3 scripts/raw_to_image.py build/output.raw build/output.png --mode gray
 ```
 
-4. Convert the grayscale raw output back into a viewable image:
+## Organización del módulo
 
-```bash
-python3 scripts/raw_to_image.py build/output.raw build/output.png
+- `CPU`: inicia la secuencia leyendo el raw de entrada, copiándolo a RAM,
+  activando el acelerador y almacenando el resultado.
+- `Bus`: enruta transacciones hacia RAM, acelerador o almacenamiento según la
+  dirección física.
+- `RAM`: modela 64 MB de memoria compartida, accesible por CPU y DMA.
+- `Accelerator`: lee RGB desde RAM por DMA, convierte cada píxel a
+  grayscale y escribe el resultado de vuelta en RAM.
+- `PersistentStorage`: carga el archivo raw de entrada y guarda el raw de
+  salida.
+
+## Marco Teorico
+
+### Diagrama de bloques de la arquitectura propuesta
+
+```mermaid
+flowchart LR
+    CPU[CPU / Initiator TLM]
+    BUS[Bus TLM]
+    RAM[RAM 64 MB]
+    ACC[Accelerator RGB->Gray]
+    STG[Persistent Storage]
+
+    CPU --> BUS
+    BUS --> RAM
+    BUS --> ACC
+    BUS --> STG
+    ACC --> RAM
 ```
 
-Notes:
+### Diagrama de secuencias
 
-- The native entry point reads a raw RGB input file, not a JPEG directly.
-- The binary is written to `./rgb2gray` by the current CMake settings.
-- If you want to use the sample image already in the repo, convert
-  `pictures/jpg/grumpy-cat.jpg` or another image into `build/input.raw` first.
+```mermaid
+sequenceDiagram
+    participant CPU
+    participant BUS
+    participant STG as Storage
+    participant RAM
+    participant ACC as Accelerator
 
+    CPU->>BUS: read STORAGE_CMD_LOAD
+    BUS->>STG: read raw RGB input
+    STG-->>BUS: RGB bytes
+    BUS-->>CPU: RGB bytes
 
-## Optional image conversion
+    CPU->>BUS: write RGB buffer to INPUT_ADDR
+    BUS->>RAM: write RGB data
 
-If you want to convert one of the sample JPEGs into raw input first:
+    CPU->>BUS: write AccelConfig
+    BUS->>ACC: config registers
+    ACC->>RAM: DMA read RGB input
+    ACC->>RAM: DMA write grayscale output
+    ACC-->>BUS: TLM_OK_RESPONSE
+    BUS-->>CPU: accelerator done
 
-```bash
-python3 scripts/image_to_raw.py pictures/jpg/grumpy-cat.jpg build/grumpy-cat.raw --resize
+    CPU->>BUS: read OUTPUT_ADDR
+    BUS->>RAM: read grayscale buffer
+    RAM-->>CPU: gray bytes
+
+    CPU->>BUS: write STORAGE_CMD_SAVE
+    BUS->>STG: save raw grayscale output
 ```
 
-To inspect a raw file:
+### Formato de las transacciones
+
+Todas las interacciones usan `tlm::tlm_generic_payload` con `b_transport`.
+
+| Campo | Uso |
+|---|---|
+| `command` | `TLM_READ_COMMAND` o `TLM_WRITE_COMMAND` |
+| `address` | Dirección física o desplazamiento local, según el módulo |
+| `data_ptr` | Buffer de entrada o salida |
+| `data_length` | Tamaño en bytes del buffer |
+| `streaming_width` | Igual a `data_length` para transferencias lineales |
+| `byte_enable_ptr` | `nullptr` |
+| `dmi_allowed` | `false` |
+| `response_status` | `TLM_INCOMPLETE_RESPONSE` al inicio, luego `TLM_OK_RESPONSE` o error |
+
+### Secuencia de transacciones del CPU
+
+1. Lee `RGB_SIZE` bytes desde `STORAGE_BASE + STORAGE_CMD_LOAD`.
+2. Escribe el buffer RGB en `INPUT_ADDR`.
+3. Escribe `AccelConfig` en `ACCEL_BASE`.
+4. Lee `GRAY_SIZE` bytes desde `OUTPUT_ADDR`.
+5. Guarda el resultado en `STORAGE_BASE + STORAGE_CMD_SAVE`.
+
+### Mapa de memoria utilizado
+
+| Región | Base | Tamaño | Uso |
+|---|---:|---:|---|
+| RAM | `0x0000_0000` | `64 MB` | memoria compartida CPU/DMA |
+| Acelerador | `0x1000_0000` | `256 B` | registros de configuración |
+| Almacenamiento | `0x2000_0000` | `0x1000` | comandos de carga/guardado |
+
+Constantes principales:
+
+| Constante | Valor |
+|---|---:|
+| `IMG_WIDTH` | `1920` |
+| `IMG_HEIGHT` | `1080` |
+| `NUM_PIXELS` | `2,073,600` |
+| `RGB_SIZE` | `6,220,800` bytes |
+| `GRAY_SIZE` | `2,073,600` bytes |
+| `INPUT_ADDR` | `0x0000_0000` |
+| `OUTPUT_ADDR` | `0x0060_0000` |
+
+### Resultados obtenidos
+
+Con una imagen RGB de 1080p:
+
+- la entrada debe tener exactamente `6,220,800` bytes
+- la salida en escala de grises tiene `2,073,600` bytes
+- el modelo conserva una latencia proporcional a:
+  - lectura desde almacenamiento: `STORAGE_NS_PER_BYTE`
+  - acceso a RAM: `RAM_NS_PER_BYTE`
+  - procesamiento del acelerador: `ACCEL_NS_PER_PIXEL`
+
+Además, el módulo `PersistentStorage` valida que el archivo de entrada sea
+exactamente una imagen raw RGB de `1920 x 1080` píxeles antes de ejecutar la
+simulación.
+
+## Notas de uso
+
+- El punto de entrada nativo lee un archivo raw RGB, no una imagen JPG/PNG
+  directamente.
+- El binario nativo se genera como `./rgb2gray` con la configuración actual de
+  CMake.
+- Si necesitas generar un raw de prueba, usa `scripts/image_to_raw.py` antes de
+  ejecutar el binario.
+
+## Objetivos de compilación
 
 ```bash
-python3 scripts/raw_to_image.py build/grumpy-online-gray.raw build/grumpy-online-gray.png --mode gray
-```
-
-## Make targets
-
-```bash
-make run
+make native-build
+make native-run
 make image
 ```
-
-## Notes
-
-- The grayscale conversion uses an integer BT.601 luminance approximation.
-- A full native SystemC build would still require the missing `systemc`
-  headers/libraries and a C++ compiler, which are not available in this
-  environment.
