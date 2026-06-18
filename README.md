@@ -10,6 +10,9 @@ the simulator.
 - `scripts/raw_to_image.py` converts raw output back into a viewable image
 - `src/main.cpp` is the native SystemC entry point
 
+## Install Python package Pillow
+python3 -m pip install pillow
+
 ## Install SystemC
 
 If you do not already have SystemC, the most reliable path is to build it
@@ -67,7 +70,7 @@ Use this flow when you want to run the actual SystemC/TLM version.
 1. Build the native binary:
 
 ```bash
-make SYSTEMC_HOME=/path/to/systemc
+make SYSTEMC_HOME=/opt/systemc
 ```
 
 2. Convert a JPEG or PNG into the raw RGB input expected by the simulator:
@@ -85,13 +88,12 @@ python3 scripts/image_to_raw.py pictures/jpg/grumpy-cat.jpg build/proc_input.raw
 4. Convert the grayscale raw output back into a viewable image:
 
 ```bash
-python3 scripts/raw_to_image.py build/output.raw build/output.png --mode gray
+python3 scripts/raw_to_image.py build/output.raw build/output.png
 ```
 
 Notes:
 
 - The native entry point reads a raw RGB input file, not a JPEG directly.
-- The input raw file must be a full 1920x1080 frame (6,220,800 RGB bytes).
 - The binary is written to `./rgb2gray` by the current CMake settings.
 - If you want to use the sample image already in the repo, convert
   `pictures/jpg/grumpy-cat.jpg` or another image into `build/input.raw` first.
