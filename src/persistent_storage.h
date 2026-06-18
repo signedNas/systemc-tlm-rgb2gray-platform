@@ -3,6 +3,7 @@
 #include <tlm>
 #include <tlm_utils/simple_target_socket.h>
 #include <fstream>
+#include <iterator>
 #include <string>
 #include <iostream>
 #include "memory_map.h"
@@ -28,6 +29,15 @@ private:
     std::string input_file_;
     std::string output_file_;
 
+    static std::streamsize file_size(std::ifstream& file)
+    {
+        const auto current = file.tellg();
+        file.seekg(0, std::ios::end);
+        const auto end = file.tellg();
+        file.seekg(current, std::ios::beg);
+        return end;
+    }
+
     void b_transport(tlm::tlm_generic_payload& trans, sc_core::sc_time& delay)
     {
         // Address is already remapped to local offset by the Bus
@@ -40,6 +50,16 @@ private:
             if (!file.is_open()) {
                 SC_REPORT_FATAL("Storage",
                     ("cannot open: " + input_file_ + "  (run 'make image' first)").c_str());
+                trans.set_response_status(tlm::TLM_GENERIC_ERROR_RESPONSE);
+                return;
+            }
+            const auto expected = static_cast<std::streamsize>(RGB_SIZE);
+            const auto actual = file_size(file);
+            if (actual != expected) {
+                SC_REPORT_FATAL("Storage",
+                    ("input image must be 1920x1080 RGB raw (" + std::to_string(expected) +
+                     " bytes), but '" + input_file_ + "' is " + std::to_string(actual) +
+                     " bytes").c_str());
                 trans.set_response_status(tlm::TLM_GENERIC_ERROR_RESPONSE);
                 return;
             }
