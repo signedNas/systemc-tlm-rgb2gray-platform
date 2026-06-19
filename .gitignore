@@ -66,4 +66,18 @@
 .history
 .ionide
 
+# Project-specific build artifacts
+build/
+rgb2gray
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+compile_commands.json
+Makefile.user
+
+# Generated simulator outputs
+output.raw
+output.png
+*.ppm
+
 # End of https://www.toptal.com/developers/gitignore/api/c++,linux,visualstudiocode
